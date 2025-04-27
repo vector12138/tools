@@ -1,9 +1,7 @@
 import os
-import sys
 import time
 import queue
 from threading import Thread, Event, RLock, current_thread
-import heapq
 import uuid
 
 from logger import Logger
