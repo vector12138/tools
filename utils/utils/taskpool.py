@@ -1,16 +1,27 @@
+# 导入必要的模块
 import os
 import time
 import queue
-from threading import Thread, Event, RLock, current_thread
 import uuid
+from threading import Thread, Event, RLock
 
-from logger import Logger
+from .logger import Logger
 
+# 定义任务池类，继承自 Thread 类
 class TaskPool(Thread):
-
-    # 任务
+    
+    # 内部类，用于表示任务
     class Task:
+        """表示任务池中的一个任务。"""
         def __init__(self, id, priority, func, args):
+            """初始化任务对象。
+            
+            Args:
+                id (str): 任务的唯一 ID。
+                priority (int): 任务的优先级。
+                func (callable): 任务要执行的函数。
+                args: 传递给函数的参数。
+            """
             self.id = id  # 任务的唯一ID
             self.priority = priority
             self.func = func
@@ -18,18 +29,28 @@ class TaskPool(Thread):
             self.timestamp = time.time()
 
         def __lt__(self, other):
+            """自定义比较规则，用于优先级队列。"""
             # 自定义比较规则
             if self.priority == other.priority:
                 return self.timestamp < other.timestamp
             return self.priority < other.priority
 
         def execute(self):
+            """执行任务。"""
             try:
                 self.func(self.args)
             except Exception as e:
                 self.__class__.__logger.info(f"任务 {self.id} 执行出错: {e}")
 
     def __init__(self, pool_size:int=2, max_pool_size:int=3, max_queue_cnt:int=100, logfile:str='./taskpool.log'):
+        """初始化任务池。
+        
+        Args:
+            pool_size (int): 初始线程池大小，默认值为 2。
+            max_pool_size (int): 最大线程池大小，默认值为 3。
+            max_queue_cnt (int): 任务队列的最大容量，默认值为 100。
+            logfile (str): 日志文件路径，默认值为 './taskpool.log'。
+        """
         super().__init__()
         self.name = 'taskpool'
         if pool_size < 1:
@@ -55,6 +76,11 @@ class TaskPool(Thread):
 
     @classmethod
     def __task_loop(cls, para):
+        """任务线程的主循环函数。
+        
+        Args:
+            para (dict): 包含线程所需参数的字典。
+        """
         which = para.get('which', None)
         name = para.get('name', None)
         task_queue = para.get('task_queue', None)
@@ -87,6 +113,16 @@ class TaskPool(Thread):
         logger.info(f"任务线程 {name} 已结束")
 
     def addTask(self, func, args, priority=7):
+        """向任务池添加新任务。
+        
+        Args:
+            func (callable): 任务要执行的函数。
+            args: 传递给函数的参数。
+            priority (int): 任务的优先级，默认值为 7。
+        
+        Returns:
+            str or None: 任务的唯一 ID，如果队列已满则返回 None。
+        """
         try:
             # 使用 uuid 生成不重复的 task_id
             id = uuid.uuid4().hex
@@ -122,6 +158,7 @@ class TaskPool(Thread):
             return None
 
     def run(self):
+        """任务池的主运行循环。"""
         self.__logger.info("任务池已启动")
         while not self.__stop_event.is_set():
             try:
@@ -142,6 +179,7 @@ class TaskPool(Thread):
         self.__logger.info("任务池已结束")
 
     def stop(self):
+        """停止任务池，等待所有任务完成。"""
         with self.__tasks_rlock:
             for which, task_info in self.__tasks_dict.items():
                 if 'stop_event' in task_info:
@@ -155,12 +193,14 @@ class TaskPool(Thread):
         self.__logger.info("所有任务线程已停止")
 
     def join(self):
+        """等待任务池中的所有任务完成。"""
         while self.__active_tasks > 0:
             time.sleep(1)
         super().join()
 
 if __name__ == '__main__':
     def test(args):
+        """测试函数。"""
         cnt = args['cnt']
         print(f'当前输出 {cnt}')
 
